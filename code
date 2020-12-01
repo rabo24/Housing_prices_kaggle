@@ -1,0 +1,534 @@
+# This Python 3 environment comes with many helpful analytics libraries installed
+# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
+# For example, here's several helpful packages to load
+
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+train = pd.read_csv("../input/house-prices-advanced-regression-techniques/train.csv", index_col = 'Id')
+test = pd.read_csv("../input/house-prices-advanced-regression-techniques/test.csv", index_col = 'Id')
+
+#remove rows that are missing target, make y variable and X variables(removing y, or SalePrice, from training set)
+train.dropna(subset = ['SalePrice'], axis = 0,inplace = True)
+y = train.SalePrice
+train.drop(['SalePrice'], axis = 1, inplace = True)
+X = train
+
+print(y)
+print(train)
+
+#find columns w lots of misisng values to decide which ones to remove and which ones to imputre
+missing_val_count_by_column = (X.isnull().sum())
+print(missing_val_count_by_column[missing_val_count_by_column > 0])
+print(missing_val_count_by_column[missing_val_count_by_column > 260])
+
+#going to make array where if its missing more than 260 values than variable column goes into array and i will eventually drop these
+missing_vals_var_drop = (missing_val_count_by_column[missing_val_count_by_column > 260])
+print(missing_vals_var_drop)
+
+#copied X dataset to X2, and then at some pont dropped the variables w missing values more than 260
+X2 = X.copy()
+X2.drop(['Alley','FireplaceQu','PoolQC','Fence','MiscFeature'], axis=1, inplace=True)
+print(X2)
+#wanted to variable MSZoning below for unique values
+print(X2.MSZoning.nunique())
+
+
+print(missing_val_count_by_column[missing_val_count_by_column > 0])
+print(list(X2))
+
+#split up dataset into training and test
+from sklearn.model_selection import train_test_split
+
+X_train, X_valid, y_train, y_valid = train_test_split(X2, y,
+                                                     train_size = 0.8,
+                                                     test_size = 0.2,
+                                                     random_state= 0)
+                                                     
+                                                     # Get list of categorical variables
+s = (X_train.dtypes == 'object')
+object_cols = list(s[s].index)
+
+print("Categorical variables:")
+print(object_cols)
+print(s)
+print(X_train['MSZoning'].dtype)
+print(s.index)
+print(s[s]) #prints only the columns where categorical or "object" variables are true and the boolean indicator
+print(s[s].index) #prints only the columns of the categorical/object variables
+print(list(s[s].index)) 
+
+
+# Columns that can be safely label encoded
+good_label_cols = [col for col in object_cols
+                  if set(X_train[col]) == set(X_valid[col])]
+# Columns that will be dropped
+bad_label_cols = list(set(object_cols)-set(good_label_cols))
+
+print(object_cols)
+print(good_label_cols)
+print(bad_label_cols)
+print(X_valid.Neighborhood)
+print(X_valid['Neighborhood'])
+
+
+#going to encode categorical variables
+#10/28/20 in the end it turned out i didnt need to use label encoder
+#from sklearn.preprocessing import LabelEncoder
+#make copies of x_train n s_valid so as not to overwrite stuffs
+X_train_label_enc = X_train.copy()
+X_valid_label_enc = X_valid.copy()
+
+X_train_label_enc.drop(bad_label_cols, axis = 1, inplace = True)
+X_valid_label_enc.drop(bad_label_cols, axis = 1, inplace = True)
+
+#print(X_valid_label_enc[bad_label_cols])
+#print(X_train_label_enc[bad_label_cols])
+print(list(X_train_label_enc[good_label_cols]))
+
+#Investigating Cardinality
+# Get number of unique entries in each column with categorical data
+# making copy of object_cols and dropping "Utilities" so cardinality code will work
+#object_cols_2 = object_cols.copy()
+#print(object_cols_2)
+#apparently below code is how you drop an element from a list
+#object_cols_2.remove('Utilities')
+#think i may have been going about this the wront way bc i should have been using good_label_cols
+object_nunique = list(map(lambda col: X_train_label_enc[col].nunique(), good_label_cols))
+#btw but what the hell does map do? when i prnt map(lambda col: X_train_label_enc[col].nunique(), good_label_cols))
+# i get <map object at 0x7fd1704e96d0> but when i print list(map(lambda col: X_train_label_enc[col].nunique(), good_label_cols))
+# i get array of the number of levels in each good object column
+print((list(map(lambda col: X_train_label_enc[col].nunique(), good_label_cols))))
+d = dict(zip(good_label_cols, object_nunique))
+print(d)
+# Print number of unique entries by column, in ascending order
+sorted(d.items(), key=lambda x: x[1])
+
+# Encoded categorical variables
+#10/22/20 FIGURED OUT HOW TO DO IT!!! this manual way will take a while but better than nothing
+
+X_train_label_enc['MSZoning'] = X_train_label_enc['MSZoning'].astype('category')
+X_valid_label_enc['MSZoning'] = X_valid_label_enc['MSZoning'].astype('category')
+
+X_train_label_enc['MSZoning'] = X_train_label_enc['MSZoning'].cat.codes
+X_valid_label_enc['MSZoning'] = X_valid_label_enc['MSZoning'].cat.codes
+
+X_train_label_enc['LotShape'] = X_train_label_enc['LotShape'].astype('category')
+X_valid_label_enc['LotShape'] = X_valid_label_enc['LotShape'].astype('category')
+
+X_train_label_enc['LotShape'] = X_train_label_enc['LotShape'].cat.codes
+X_valid_label_enc['LotShape'] = X_valid_label_enc['LotShape'].cat.codes
+
+X_train_label_enc['LandContour'] = X_train_label_enc['LandContour'].astype('category')
+X_valid_label_enc['LandContour'] = X_valid_label_enc['LandContour'].astype('category')
+
+X_train_label_enc['LandContour'] = X_train_label_enc['LandContour'].cat.codes
+X_valid_label_enc['LandContour'] = X_valid_label_enc['LandContour'].cat.codes
+
+X_train_label_enc['LotConfig'] = X_train_label_enc['LotConfig'].astype('category')
+X_valid_label_enc['LotConfig'] = X_valid_label_enc['LotConfig'].astype('category')
+
+X_train_label_enc['LotConfig'] = X_train_label_enc['LotConfig'].cat.codes
+X_valid_label_enc['LotConfig'] = X_valid_label_enc['LotConfig'].cat.codes
+
+
+X_train_label_enc['BldgType'] = X_train_label_enc['BldgType'].astype('category')
+X_valid_label_enc['BldgType'] = X_valid_label_enc['BldgType'].astype('category')
+
+X_train_label_enc['BldgType'] = X_train_label_enc['BldgType'].cat.codes
+X_valid_label_enc['BldgType'] = X_valid_label_enc['BldgType'].cat.codes
+
+X_train_label_enc['HouseStyle'] = X_train_label_enc['HouseStyle'].astype('category')
+X_valid_label_enc['HouseStyle'] = X_valid_label_enc['HouseStyle'].astype('category')
+
+X_train_label_enc['HouseStyle'] = X_train_label_enc['HouseStyle'].cat.codes
+X_valid_label_enc['HouseStyle'] = X_valid_label_enc['HouseStyle'].cat.codes
+
+
+X_train_label_enc['MasVnrType'] = X_train_label_enc['MasVnrType'].astype('category')
+X_valid_label_enc['MasVnrType'] = X_valid_label_enc['MasVnrType'].astype('category')
+
+X_train_label_enc['MasVnrType'] = X_train_label_enc['MasVnrType'].cat.codes
+X_valid_label_enc['MasVnrType'] = X_valid_label_enc['MasVnrType'].cat.codes
+
+X_train_label_enc['ExterQual'] = X_train_label_enc['ExterQual'].astype('category')
+X_valid_label_enc['ExterQual'] = X_valid_label_enc['ExterQual'].astype('category')
+
+X_train_label_enc['ExterQual'] = X_train_label_enc['ExterQual'].cat.codes
+X_valid_label_enc['ExterQual'] = X_valid_label_enc['ExterQual'].cat.codes
+
+X_train_label_enc['BsmtQual'] = X_train_label_enc['BsmtQual'].astype('category')
+X_valid_label_enc['BsmtQual'] = X_valid_label_enc['BsmtQual'].astype('category')
+
+X_train_label_enc['BsmtQual'] = X_train_label_enc['BsmtQual'].cat.codes
+X_valid_label_enc['BsmtQual'] = X_valid_label_enc['BsmtQual'].cat.codes
+
+X_train_label_enc['BsmtExposure'] = X_train_label_enc['BsmtExposure'].astype('category')
+X_valid_label_enc['BsmtExposure'] = X_valid_label_enc['BsmtExposure'].astype('category')
+
+X_train_label_enc['BsmtExposure'] = X_train_label_enc['BsmtExposure'].cat.codes
+X_valid_label_enc['BsmtExposure'] = X_valid_label_enc['BsmtExposure'].cat.codes
+
+X_train_label_enc['BsmtFinType1'] = X_train_label_enc['BsmtFinType1'].astype('category')
+X_valid_label_enc['BsmtFinType1'] = X_valid_label_enc['BsmtFinType1'].astype('category')
+
+X_train_label_enc['BsmtFinType1'] = X_train_label_enc['BsmtFinType1'].cat.codes
+X_valid_label_enc['BsmtFinType1'] = X_valid_label_enc['BsmtFinType1'].cat.codes
+
+X_train_label_enc['BsmtFinType2'] = X_train_label_enc['BsmtFinType2'].astype('category')
+X_valid_label_enc['BsmtFinType2'] = X_valid_label_enc['BsmtFinType2'].astype('category')
+
+X_train_label_enc['BsmtFinType2'] = X_train_label_enc['BsmtFinType2'].cat.codes
+X_valid_label_enc['BsmtFinType2'] = X_valid_label_enc['BsmtFinType2'].cat.codes
+
+X_train_label_enc['CentralAir'] = X_train_label_enc['CentralAir'].astype('category')
+X_valid_label_enc['CentralAir'] = X_valid_label_enc['CentralAir'].astype('category')
+
+X_train_label_enc['CentralAir'] = X_train_label_enc['CentralAir'].cat.codes
+X_valid_label_enc['CentralAir'] = X_valid_label_enc['CentralAir'].cat.codes
+
+X_train_label_enc['KitchenQual'] = X_train_label_enc['KitchenQual'].astype('category')
+X_valid_label_enc['KitchenQual'] = X_valid_label_enc['KitchenQual'].astype('category')
+
+X_train_label_enc['KitchenQual'] = X_train_label_enc['KitchenQual'].cat.codes
+X_valid_label_enc['KitchenQual'] = X_valid_label_enc['KitchenQual'].cat.codes
+
+X_train_label_enc['GarageFinish'] = X_train_label_enc['GarageFinish'].astype('category')
+X_valid_label_enc['GarageFinish'] = X_valid_label_enc['GarageFinish'].astype('category')
+
+X_train_label_enc['GarageFinish'] = X_train_label_enc['GarageFinish'].cat.codes
+X_valid_label_enc['GarageFinish'] = X_valid_label_enc['GarageFinish'].cat.codes
+
+X_train_label_enc['GarageCond'] = X_train_label_enc['GarageCond'].astype('category')
+X_valid_label_enc['GarageCond'] = X_valid_label_enc['GarageCond'].astype('category')
+
+X_train_label_enc['GarageCond'] = X_train_label_enc['GarageCond'].cat.codes
+X_valid_label_enc['GarageCond'] = X_valid_label_enc['GarageCond'].cat.codes
+
+X_train_label_enc['PavedDrive'] = X_train_label_enc['PavedDrive'].astype('category')
+X_valid_label_enc['PavedDrive'] = X_valid_label_enc['PavedDrive'].astype('category')
+
+X_train_label_enc['PavedDrive'] = X_train_label_enc['PavedDrive'].cat.codes
+X_valid_label_enc['PavedDrive'] = X_valid_label_enc['PavedDrive'].cat.codes
+
+X_train_label_enc['SaleCondition'] = X_train_label_enc['SaleCondition'].astype('category')
+X_valid_label_enc['SaleCondition'] = X_valid_label_enc['SaleCondition'].astype('category')
+
+X_train_label_enc['SaleCondition'] = X_train_label_enc['SaleCondition'].cat.codes
+X_valid_label_enc['SaleCondition'] = X_valid_label_enc['SaleCondition'].cat.codes
+
+
+X_train_label_enc['Street'] = X_train_label_enc['Street'].astype('category')
+X_valid_label_enc['Street'] = X_valid_label_enc['Street'].astype('category')
+
+X_train_label_enc['Street'] = X_train_label_enc['Street'].cat.codes
+X_valid_label_enc['Street'] = X_valid_label_enc['Street'].cat.codes
+
+print(X_train_label_enc['SaleCondition'])
+print(X_valid_label_enc['CentralAir'])
+print(X_train_label_enc['MSZoning'])
+print(X_valid_label_enc['Street'].nunique())
+
+
+#import imputer---
+from sklearn.impute import SimpleImputer
+
+# Imputation
+my_imputer = SimpleImputer()
+imputed_X_train = pd.DataFrame(my_imputer.fit_transform(X_train_label_enc))
+imputed_X_valid = pd.DataFrame(my_imputer.transform(X_valid_label_enc))
+
+# Imputation removed column names; put them back
+imputed_X_train.columns = X_train_label_enc.columns
+imputed_X_valid.columns = X_valid_label_enc.columns
+
+missing_val_count_by_column4 = (imputed_X_train.isnull().sum())
+#print((X_train_label_enc.dtypes))
+#print((X_train_label_enc['Street']))
+print(((missing_val_count_by_column4[missing_val_count_by_column4>0])))
+
+imputed_X_train.head()
+
+#10/28/20 now for variable analysis of regression model. i think first i will make a simple regression model using all the features as a baseline
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error
+
+model = LinearRegression()
+model.fit(imputed_X_train, y_train)
+# evaluate the model
+yhat = model.predict(imputed_X_valid)
+# evaluate predictions
+mae = mean_absolute_error(y_valid, yhat)
+print(mae)
+
+y_valid.describe()
+
+
+#11/11/20 going to use decision tree regression
+from sklearn.tree import DecisionTreeRegressor
+regressor_dt = DecisionTreeRegressor(random_state = 0)
+regressor_dt.fit(imputed_X_train, y_train)
+
+yhat_dt = regressor_dt.predict(imputed_X_valid)
+# evaluate predictions
+mae = mean_absolute_error(y_valid, yhat_dt)
+print(mae)
+
+#11/11/20 going to use random forest regression model
+from sklearn.ensemble import RandomForestRegressor 
+regressor_rf = RandomForestRegressor(n_estimators = 60, random_state = 0)
+regressor_rf.fit(imputed_X_train, y_train)
+
+yhat_rf = regressor_rf.predict(imputed_X_valid)
+# evaluate predictions
+mae = mean_absolute_error(y_valid, yhat_rf)
+print(mae)
+
+#11/11/20 going to use k nearest neighbors regressor
+from sklearn.neighbors import KNeighborsRegressor
+regressor_knn = KNeighborsRegressor()
+regressor_knn.fit(imputed_X_train, y_train)
+
+yhat_knn = regressor_knn.predict(imputed_X_valid)
+# evaluate predictions
+mae = mean_absolute_error(y_valid, yhat_knn)
+print(mae)
+
+#11/9/2020 going to try a support vector regression and will need to do the feature scalings
+#11/30/2020 ended up not going forward with SVR but keeping it here for future reference 
+
+# Feature Scaling
+from sklearn.preprocessing import StandardScaler
+sc_X_train = StandardScaler()
+sc_y_train = StandardScaler()
+sc_X_valid = StandardScaler()
+sc_y_valid = StandardScaler()
+X_train_scalar = sc_X_train.fit_transform(imputed_X_train)
+
+X_valid_scalar = sc_X_train.fit_transform(imputed_X_valid)
+
+print(X_train_scalar)
+print(imputed_X_train)
+print(y_train_scalar)
+
+# Training the SVR model on the whole dataset
+from sklearn.svm import SVR
+regressor = SVR(kernel = 'rbf')
+regressor.fit(X_train_scalar, y_train)
+
+
+# evaluate the model
+yhat_svr = regressor.predict(X_valid_scalar)
+# evaluate predictions
+mae = mean_absolute_error(y_valid, yhat_svr)
+print(mae)
+
+y_valid.describe()
+
+#11/9/2020 going to try a polynomial linear regression bc why not. dont think it will work bc im not sure if any of the features
+# are polynomials
+#11/9/2020 DONT USE POLYNOMIAL REGRESSION, WILL CAUSE NOTEBOOK TO CRASH
+# Training the Polynomial Regression model on the whole dataset
+#from sklearn.preprocessing import PolynomialFeatures
+#poly_reg = PolynomialFeatures(degree = 4)
+#X_poly_train = poly_reg.fit_transform(imputed_X_train)
+#X_poly_valid = poly_reg.fit_transform(imputed_X_valid)
+#lin_reg_2 = LinearRegression()
+#lin_reg_2.fit(X_poly_train, y_train)
+
+
+# evaluate the model
+#yhat_poly = model.predict(X_poly_valid)
+# evaluate predictions
+#mae = mean_absolute_error(y_valid, yhat_poly)
+#print(mae)
+
+
+#10/29/20 decided not to do outliers this time, will work on them next time
+#10/28/20 going to try to identify outliers using the gaussian method of identify values above 3 std
+#11/30/2020 ended up not removing any outliers 
+
+from numpy import mean
+from numpy import std
+
+print(list(imputed_X_train))
+print(list(imputed_X_train[good_label_cols]))
+
+print(imputed_X_train['LotFrontage'])
+imputed_X_train['LotFrontage'].describe()
+
+# calculate summary statistics
+data_mean, data_std = mean(imputed_X_train['LotFrontage']), std(imputed_X_train['LotFrontage'])
+# identify outliers
+cut_off = data_std * 3
+lower, upper = data_mean - cut_off, data_mean + cut_off
+# identify outliers
+outliers = [x for x in imputed_X_train['LotFrontage'] if x < lower or x > upper]
+print('Identified outliers: %d' % len(outliers))
+
+print(outliers)
+
+outliers_removed = [x for x in imputed_X_train['LotFrontage'] if x >= lower and x <= upper]
+
+
+#11/03/20 continuing the outlier analysis here, only going to analyze continuous variables. going to overwrite the "outliers" var each time and just redo the 
+#code over and over again and do the analysis individually
+#11/30/2020 ended up not using this, just copying some of the variables i did outlier analysis on for future reference
+
+
+# LotArea outlier analysis 
+print(imputed_X_train['LotArea'])
+imputed_X_train['LotArea'].describe()
+
+# calculate summary statistics
+data_mean, data_std = mean(imputed_X_train['LotArea']), std(imputed_X_train['LotArea'])
+# identify outliers
+cut_off = data_std * 3
+lower, upper = data_mean - cut_off, data_mean + cut_off
+# identify outliers
+outliers = [x for x in imputed_X_train['LotArea'] if x < lower or x > upper]
+print('Identified outliers: %d' % len(outliers))
+
+imputed_X_train['LotArea'].describe()
+print(outliers)
+
+# Year Built outlier analysis 
+print(imputed_X_train['YearBuilt'])
+imputed_X_train['YearBuilt'].describe()
+
+# calculate summary statistics
+data_mean, data_std = mean(imputed_X_train['YearBuilt']), std(imputed_X_train['YearBuilt'])
+# identify outliers
+cut_off = data_std * 3
+lower, upper = data_mean - cut_off, data_mean + cut_off
+# identify outliers
+outliers = [x for x in imputed_X_train['YearBuilt'] if x < lower or x > upper]
+print('Identified outliers: %d' % len(outliers))
+
+
+# YearRemodAdd outlier analysis
+print(imputed_X_train['YearRemodAdd'])
+imputed_X_train['YearRemodAdd'].describe()
+
+# calculate summary statistics
+data_mean, data_std = mean(imputed_X_train['YearRemodAdd']), std(imputed_X_train['YearRemodAdd'])
+# identify outliers
+cut_off = data_std * 3
+lower, upper = data_mean - cut_off, data_mean + cut_off
+# identify outliers
+outliers = [x for x in imputed_X_train['YearRemodAdd'] if x < lower or x > upper]
+print('Identified outliers: %d' % len(outliers))
+
+# MasVnrAdd outlier analysis
+print(imputed_X_train['MasVnrArea'])
+imputed_X_train['MasVnrArea'].describe()
+
+# calculate summary statistics
+data_mean, data_std = mean(imputed_X_train['MasVnrArea']), std(imputed_X_train['MasVnrArea'])
+# identify outliers
+cut_off = data_std * 3
+lower, upper = data_mean - cut_off, data_mean + cut_off
+# identify outliers
+outliers = [x for x in imputed_X_train['MasVnrArea'] if x < lower or x > upper]
+print('Identified outliers: %d' % len(outliers))
+
+print(outliers)
+
+imputed_X_train.drop(['MasVnrArea'], axis = 1, inplace = True)
+imputed_X_valid.drop(['MasVnrArea'], axis = 1, inplace = True)
+
+
+# BsmtFinSF1 outlier analysis
+print(imputed_X_train['BsmtFinSF1'])
+imputed_X_train['BsmtFinSF1'].describe()
+
+# calculate summary statistics
+data_mean, data_std = mean(imputed_X_train['BsmtFinSF1']), std(imputed_X_train['BsmtFinSF1'])
+# identify outliers
+cut_off = data_std * 3
+lower, upper = data_mean - cut_off, data_mean + cut_off
+# identify outliers
+outliers = [x for x in imputed_X_train['BsmtFinSF1'] if x < lower or x > upper]
+print('Identified outliers: %d' % len(outliers))
+print(outliers)
+print('Non-outlier observations: %d' % len(outliers_removed))
+
+# 10/29/20 going to try the correlation code to do feature selection
+# example of correlation feature selection for numerical data
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_regression
+from matplotlib import pyplot
+
+# feature selection
+def select_features(imputed_X_train, y_train, imputed_X_valid):
+    # configure to select all features
+    fs = SelectKBest(score_func=f_regression, k='all')
+    # learn relationship from training data
+    fs.fit(imputed_X_train, y_train)
+    # transform train input data
+    X_train_fs = fs.transform(imputed_X_train)
+    # transform test input data
+    X_test_fs = fs.transform(imputed_X_valid)
+    return X_train_fs, X_test_fs, fs
+
+
+X_train_fs, X_test_fs, fs = select_features(imputed_X_train, y_train, imputed_X_valid)
+# what are scores for the features
+for i in range(len(fs.scores_)):
+    print('Feature %d: %f' % (i, fs.scores_[i]))
+# plot the scores
+pyplot.bar([i for i in range(len(fs.scores_))], fs.scores_)
+pyplot.show()
+
+list(imputed_X_valid.columns)
+
+# 11/30/2020 going to individually drop features w correlation to target < 1. decided to drop all the low scoring features at once
+imputed_X_train_drop2 = imputed_X_train.copy()
+imputed_X_train_drop2.drop(['MasVnrType', 'BsmtFinType1', 'BsmtFinSF2', 'LowQualFinSF', 'BsmtHalfBath', 'PoolArea', 'MiscVal'], axis=1, inplace=True)
+
+imputed_X_valid_drop2 = imputed_X_valid.copy()
+imputed_X_valid_drop2.drop(['MasVnrType', 'BsmtFinType1', 'BsmtFinSF2', 'LowQualFinSF', 'BsmtHalfBath', 'PoolArea', 'MiscVal'], axis=1, inplace=True)
+
+#11/30/2020 going to copy and paste the regression models here using the new "dropped variables" dataset. this code box will be basic reg mdl
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error
+
+model = LinearRegression()
+model.fit(imputed_X_train_drop2, y_train)
+# evaluate the model
+yhat = model.predict(imputed_X_valid_drop2)
+# evaluate predictions
+mae = mean_absolute_error(y_valid, yhat)
+print(mae)
+
+y_valid.describe()
+imputed_X_valid_drop.describe()
+
+#11/30/2020 going to copy and paste the regression models here using the new "dropped variables" dataset. this code box will be dcsn tree
+from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
+regressor_dt = DecisionTreeRegressor(random_state = 0)
+regressor_dt.fit(imputed_X_train_drop2, y_train)
+
+
+yhat_dt = regressor_dt.predict(imputed_X_valid_drop2)
+# evaluate predictions
+mae = mean_absolute_error(y_valid, yhat_dt)
+print(mae)
+
+#11/30/2020 going to copy and paste the regression models here using the new "dropped variables" dataset. this code box will be random forest
+from sklearn.ensemble import RandomForestRegressor 
+regressor_rf = RandomForestRegressor(n_estimators = 30, random_state = 0)
+regressor_rf.fit(imputed_X_train_drop2, y_train)
+
+yhat_rf = regressor_rf.predict(imputed_X_valid_drop2)
+# evaluate predictions
+mae = mean_absolute_error(y_valid, yhat_rf)
+print(mae)
